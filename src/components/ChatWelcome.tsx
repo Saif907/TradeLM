@@ -1,25 +1,25 @@
-import { Sparkles, Code, Lightbulb, Search } from "lucide-react";
+import { TrendingUp, BarChart3, Target, Calendar } from "lucide-react";
 
 const suggestions = [
   {
-    icon: Sparkles,
-    title: "Creative Writing",
-    description: "Help me write a story",
+    icon: TrendingUp,
+    title: "Log a Trade",
+    description: "I bought AAPL at $256 and sold at $325",
   },
   {
-    icon: Code,
-    title: "Code Assistance",
-    description: "Debug my code",
+    icon: BarChart3,
+    title: "Analyze Performance",
+    description: "Show me my trading statistics this month",
   },
   {
-    icon: Lightbulb,
-    title: "Ideas & Brainstorm",
-    description: "Generate creative ideas",
+    icon: Target,
+    title: "Plan Strategy",
+    description: "Help me plan my next trade for TSLA",
   },
   {
-    icon: Search,
-    title: "Research",
-    description: "Find information",
+    icon: Calendar,
+    title: "Review Trades",
+    description: "What trades did I make last week?",
   },
 ];
 
@@ -29,10 +29,10 @@ export function ChatWelcome({ onSuggestionClick }: { onSuggestionClick: (text: s
       <div className="max-w-3xl w-full space-y-8">
         <div className="text-center space-y-3">
           <h1 className="text-4xl font-semibold text-foreground tracking-tight">
-            What can I help with?
+            Your AI Trading Journal
           </h1>
           <p className="text-muted-foreground text-lg">
-            Ask me anything or try one of these suggestions
+            Record trades, analyze performance, and plan strategies naturally
           </p>
         </div>
 

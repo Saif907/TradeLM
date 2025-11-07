@@ -44,7 +44,7 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask anything..."
+              placeholder="Record a trade, ask for insights, or plan your strategy..."
               disabled={disabled}
               className="flex-1 min-h-[24px] max-h-[200px] bg-transparent border-0 focus-visible:ring-0 resize-none px-2 py-2"
               rows={1}

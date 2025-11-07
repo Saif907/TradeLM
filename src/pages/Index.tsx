@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from "react";
-import { ChatSidebar } from "@/components/ChatSidebar";
 import { ChatMessage } from "@/components/ChatMessage";
 import { ChatInput } from "@/components/ChatInput";
 import { ChatWelcome } from "@/components/ChatWelcome";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Layout } from "@/components/Layout";
 
 interface Message {
   id: string;
@@ -97,7 +97,7 @@ const Index = () => {
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
-        content: `I'm a demo assistant. You said: "${content}"\n\nThis is where the AI response would appear. In a real implementation, this would connect to an AI service like OpenAI, Anthropic, or use Lovable AI.`,
+        content: `I've recorded your trade. Here's what I understood:\n\n"${content}"\n\nIn a real implementation, I would parse this information, extract the ticker symbol, entry/exit prices, dates, and calculate your profit/loss. I would also provide insights on your trading patterns and suggest improvements to your strategy.\n\nConnect to Lovable AI to enable full trading journal features including automatic trade parsing, P&L calculations, and personalized trading insights.`,
       };
 
       setChats((prev) =>
@@ -116,17 +116,15 @@ const Index = () => {
   };
 
   return (
-    <div className="flex h-screen bg-[hsl(var(--chat-bg))] overflow-hidden">
-      <ChatSidebar
-        isOpen={sidebarOpen}
-        onToggle={() => setSidebarOpen(!sidebarOpen)}
-        chats={chats}
-        activeChat={activeChat}
-        onChatSelect={setActiveChat}
-        onNewChat={handleNewChat}
-      />
-
-      <div className="flex-1 flex flex-col">
+    <Layout
+      sidebarOpen={sidebarOpen}
+      onSidebarToggle={() => setSidebarOpen(!sidebarOpen)}
+      chats={chats}
+      activeChat={activeChat}
+      onChatSelect={setActiveChat}
+      onNewChat={handleNewChat}
+    >
+      <div className="flex-1 flex flex-col h-screen">
         {!currentChat || currentChat.messages.length === 0 ? (
           <ChatWelcome onSuggestionClick={handleSuggestionClick} />
         ) : (
@@ -142,7 +140,7 @@ const Index = () => {
               {isTyping && (
                 <ChatMessage
                   role="assistant"
-                  content="Thinking..."
+                  content="Processing your trade..."
                 />
               )}
             </div>
@@ -151,7 +149,7 @@ const Index = () => {
 
         <ChatInput onSend={handleSendMessage} disabled={isTyping} />
       </div>
-    </div>
+    </Layout>
   );
 };
 
