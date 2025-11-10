@@ -8,6 +8,14 @@ import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
+import Overview from "./pages/internal/Overview";
+import Users from "./pages/internal/Users";
+import Sessions from "./pages/internal/Sessions";
+import Analytics from "./pages/internal/Analytics";
+import Billing from "./pages/internal/Billing";
+import SystemMetrics from "./pages/internal/SystemMetrics";
+import Configuration from "./pages/internal/Configuration";
+import Logs from "./pages/internal/Logs";
 
 const queryClient = new QueryClient();
 
@@ -22,6 +30,17 @@ const App = () => (
           <Route path="/chat" element={<Index />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/auth" element={<Auth />} />
+          
+          {/* Internal Console Routes */}
+          <Route path="/internal-console" element={<Overview />} />
+          <Route path="/internal-console/users" element={<Users />} />
+          <Route path="/internal-console/sessions" element={<Sessions />} />
+          <Route path="/internal-console/analytics" element={<Analytics />} />
+          <Route path="/internal-console/billing" element={<Billing />} />
+          <Route path="/internal-console/system" element={<SystemMetrics />} />
+          <Route path="/internal-console/config" element={<Configuration />} />
+          <Route path="/internal-console/logs" element={<Logs />} />
+          
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
