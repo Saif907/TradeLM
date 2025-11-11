@@ -6,7 +6,9 @@ import { ChatWelcome } from "@/components/ChatWelcome";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Layout } from "@/components/Layout";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 interface Message {
   id: string;
@@ -30,24 +32,82 @@ const Index = () => {
   const [isTyping, setIsTyping] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Load chats from localStorage
+  // Load chats from database
   useEffect(() => {
-    const savedChats = localStorage.getItem("chats");
-    if (savedChats) {
-      const parsedChats = JSON.parse(savedChats);
-      setChats(parsedChats.map((chat: any) => ({
-        ...chat,
-        timestamp: new Date(chat.timestamp),
-      })));
-    }
-  }, []);
+    if (!user) return;
 
-  // Save chats to localStorage
-  useEffect(() => {
-    if (chats.length > 0) {
-      localStorage.setItem("chats", JSON.stringify(chats));
-    }
-  }, [chats]);
+    const loadChats = async () => {
+      const { data: chatsData, error } = await supabase
+        .from("chats")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        toast.error("Failed to load chats");
+        return;
+      }
+
+      if (chatsData) {
+        const chatsWithMessages = await Promise.all(
+          chatsData.map(async (chat) => {
+            const { data: messagesData } = await supabase
+              .from("messages")
+              .select("*")
+              .eq("chat_id", chat.id)
+              .order("created_at", { ascending: true });
+
+            return {
+              id: chat.id,
+              title: chat.title,
+              timestamp: new Date(chat.created_at),
+              messages: (messagesData || []).map((msg) => ({
+                id: msg.id,
+                role: msg.role as "user" | "assistant",
+                content: msg.content,
+              })),
+            };
+          })
+        );
+
+        setChats(chatsWithMessages);
+      }
+    };
+
+    loadChats();
+
+    // Set up real-time subscription
+    const channel = supabase
+      .channel("chats-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "chats",
+          filter: `user_id=eq.${user.id}`,
+        },
+        () => {
+          loadChats();
+        }
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "messages",
+        },
+        () => {
+          loadChats();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -76,30 +136,74 @@ const Index = () => {
 
   const currentChat = chats.find((c) => c.id === activeChat);
 
-  const handleNewChat = () => {
+  const handleNewChat = async () => {
+    if (!user) return;
+
+    const { data, error } = await supabase
+      .from("chats")
+      .insert({
+        title: "New chat",
+        user_id: user.id,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      toast.error("Failed to create chat");
+      return;
+    }
+
     const newChat: Chat = {
-      id: Date.now().toString(),
-      title: "New chat",
-      timestamp: new Date(),
+      id: data.id,
+      title: data.title,
+      timestamp: new Date(data.created_at),
       messages: [],
     };
+
     setChats([newChat, ...chats]);
     setActiveChat(newChat.id);
   };
 
   const handleSendMessage = async (content: string) => {
+    if (!user) return;
+
     if (!activeChat) {
-      handleNewChat();
-      // Wait for state to update
+      await handleNewChat();
       setTimeout(() => handleSendMessage(content), 100);
       return;
     }
 
+    // Save user message to database
+    const { data: userMessageData, error: userError } = await supabase
+      .from("messages")
+      .insert({
+        chat_id: activeChat,
+        user_id: user.id,
+        role: "user",
+        content,
+      })
+      .select()
+      .single();
+
+    if (userError) {
+      toast.error("Failed to send message");
+      return;
+    }
+
     const userMessage: Message = {
-      id: Date.now().toString(),
+      id: userMessageData.id,
       role: "user",
       content,
     };
+
+    // Update chat title if first message
+    const currentChat = chats.find((c) => c.id === activeChat);
+    if (currentChat && currentChat.messages.length === 0) {
+      await supabase
+        .from("chats")
+        .update({ title: content.slice(0, 50) })
+        .eq("id", activeChat);
+    }
 
     setChats((prev) =>
       prev.map((chat) =>
@@ -115,12 +219,31 @@ const Index = () => {
 
     setIsTyping(true);
 
-    // Simulate AI response
-    setTimeout(() => {
+    // Simulate AI response and save to database
+    setTimeout(async () => {
+      const aiContent = `I've recorded your trade. Here's what I understood:\n\n"${content}"\n\nIn a real implementation, I would parse this information, extract the ticker symbol, entry/exit prices, dates, and calculate your profit/loss. I would also provide insights on your trading patterns and suggest improvements to your strategy.\n\nConnect to Lovable AI to enable full trading journal features including automatic trade parsing, P&L calculations, and personalized trading insights.`;
+
+      const { data: aiMessageData, error: aiError } = await supabase
+        .from("messages")
+        .insert({
+          chat_id: activeChat,
+          user_id: user.id,
+          role: "assistant",
+          content: aiContent,
+        })
+        .select()
+        .single();
+
+      if (aiError) {
+        toast.error("Failed to save AI response");
+        setIsTyping(false);
+        return;
+      }
+
       const aiMessage: Message = {
-        id: (Date.now() + 1).toString(),
+        id: aiMessageData.id,
         role: "assistant",
-        content: `I've recorded your trade. Here's what I understood:\n\n"${content}"\n\nIn a real implementation, I would parse this information, extract the ticker symbol, entry/exit prices, dates, and calculate your profit/loss. I would also provide insights on your trading patterns and suggest improvements to your strategy.\n\nConnect to Lovable AI to enable full trading journal features including automatic trade parsing, P&L calculations, and personalized trading insights.`,
+        content: aiContent,
       };
 
       setChats((prev) =>

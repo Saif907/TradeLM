@@ -6,6 +6,7 @@ import { Layout } from "@/components/Layout";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Chat {
   id: string;
@@ -38,15 +39,28 @@ const Dashboard = () => {
   }
 
   useEffect(() => {
-    const savedChats = localStorage.getItem("chats");
-    if (savedChats) {
-      const parsedChats = JSON.parse(savedChats);
-      setChats(parsedChats.map((chat: any) => ({
-        ...chat,
-        timestamp: new Date(chat.timestamp),
-      })));
-    }
-  }, []);
+    if (!user) return;
+
+    const loadChats = async () => {
+      const { data } = await supabase
+        .from("chats")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (data) {
+        setChats(
+          data.map((chat) => ({
+            id: chat.id,
+            title: chat.title,
+            timestamp: new Date(chat.created_at),
+          }))
+        );
+      }
+    };
+
+    loadChats();
+  }, [user]);
 
   const stats = [
     {
