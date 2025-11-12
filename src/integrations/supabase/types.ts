@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      audit_logs: {
+        Row: {
+          action: string
+          created_at: string
+          id: string
+          pseudonymous_id: string
+          table_name: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          id?: string
+          pseudonymous_id: string
+          table_name: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          id?: string
+          pseudonymous_id?: string
+          table_name?: string
+        }
+        Relationships: []
+      }
       chats: {
         Row: {
           created_at: string
@@ -75,27 +99,30 @@ export type Database = {
       }
       profiles: {
         Row: {
-          avatar_url: string | null
+          consent_date: string | null
+          consent_given: boolean | null
           created_at: string
-          email: string | null
-          full_name: string | null
           id: string
+          privacy_version: number | null
+          pseudonymous_id: string | null
           updated_at: string
         }
         Insert: {
-          avatar_url?: string | null
+          consent_date?: string | null
+          consent_given?: boolean | null
           created_at?: string
-          email?: string | null
-          full_name?: string | null
           id: string
+          privacy_version?: number | null
+          pseudonymous_id?: string | null
           updated_at?: string
         }
         Update: {
-          avatar_url?: string | null
+          consent_date?: string | null
+          consent_given?: boolean | null
           created_at?: string
-          email?: string | null
-          full_name?: string | null
           id?: string
+          privacy_version?: number | null
+          pseudonymous_id?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -171,6 +198,20 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_audit_log: {
+        Args: { _action: string; _pseudonymous_id: string; _table_name: string }
+        Returns: undefined
+      }
+      get_anonymized_user_analytics: {
+        Args: never
+        Returns: {
+          chat_count: number
+          join_date: string
+          message_count: number
+          pseudonymous_id: string
+          trade_count: number
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -178,6 +219,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      round_to_day: { Args: { ts: string }; Returns: string }
     }
     Enums: {
       app_role: "founder" | "admin" | "user"

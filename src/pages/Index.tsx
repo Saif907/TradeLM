@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { ChatMessage } from "@/components/ChatMessage";
 import { ChatInput } from "@/components/ChatInput";
 import { ChatWelcome } from "@/components/ChatWelcome";
+import { PrivacyConsentModal } from "@/components/PrivacyConsentModal";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Layout } from "@/components/Layout";
 import { useAuth } from "@/hooks/useAuth";
@@ -30,7 +31,30 @@ const Index = () => {
   const [chats, setChats] = useState<Chat[]>([]);
   const [activeChat, setActiveChat] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState(false);
+  const [consentGiven, setConsentGiven] = useState<boolean | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Check consent status
+  useEffect(() => {
+    const checkConsent = async () => {
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("consent_given")
+        .eq("id", user.id)
+        .single();
+
+      if (error) {
+        console.error("Error checking consent:", error);
+        return;
+      }
+
+      setConsentGiven(data?.consent_given || false);
+    };
+
+    checkConsent();
+  }, [user]);
 
   // Load chats from database
   useEffect(() => {
@@ -262,40 +286,46 @@ const Index = () => {
   };
 
   return (
-    <Layout
-      sidebarOpen={sidebarOpen}
-      onSidebarToggle={() => setSidebarOpen(!sidebarOpen)}
-      chats={chats}
-      activeChat={activeChat}
-      onChatSelect={setActiveChat}
-      onNewChat={handleNewChat}
-    >
-      <div className="flex-1 flex flex-col h-screen">
-        {!currentChat || currentChat.messages.length === 0 ? (
-          <ChatWelcome onSuggestionClick={handleSuggestionClick} />
-        ) : (
-          <ScrollArea className="flex-1" ref={scrollRef}>
-            <div className="space-y-0">
-              {currentChat.messages.map((message) => (
-                <ChatMessage
-                  key={message.id}
-                  role={message.role}
-                  content={message.content}
-                />
-              ))}
-              {isTyping && (
-                <ChatMessage
-                  role="assistant"
-                  content="Processing your trade..."
-                />
-              )}
-            </div>
-          </ScrollArea>
-        )}
+    <>
+      <PrivacyConsentModal
+        open={consentGiven === false}
+        onConsentGiven={() => setConsentGiven(true)}
+      />
+      <Layout
+        sidebarOpen={sidebarOpen}
+        onSidebarToggle={() => setSidebarOpen(!sidebarOpen)}
+        chats={chats}
+        activeChat={activeChat}
+        onChatSelect={setActiveChat}
+        onNewChat={handleNewChat}
+      >
+        <div className="flex-1 flex flex-col h-screen">
+          {!currentChat || currentChat.messages.length === 0 ? (
+            <ChatWelcome onSuggestionClick={handleSuggestionClick} />
+          ) : (
+            <ScrollArea className="flex-1" ref={scrollRef}>
+              <div className="space-y-0">
+                {currentChat.messages.map((message) => (
+                  <ChatMessage
+                    key={message.id}
+                    role={message.role}
+                    content={message.content}
+                  />
+                ))}
+                {isTyping && (
+                  <ChatMessage
+                    role="assistant"
+                    content="Processing your trade..."
+                  />
+                )}
+              </div>
+            </ScrollArea>
+          )}
 
-        <ChatInput onSend={handleSendMessage} disabled={isTyping} />
-      </div>
-    </Layout>
+          <ChatInput onSend={handleSendMessage} disabled={isTyping} />
+        </div>
+      </Layout>
+    </>
   );
 };
 

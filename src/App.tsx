@@ -7,6 +7,7 @@ import Landing from "./pages/Landing";
 import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import Auth from "./pages/Auth";
+import Privacy from "./pages/Privacy";
 import NotFound from "./pages/NotFound";
 import Overview from "./pages/internal/Overview";
 import Users from "./pages/internal/Users";
@@ -30,6 +31,7 @@ const App = () => (
           <Route path="/chat" element={<Index />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/auth" element={<Auth />} />
+          <Route path="/privacy" element={<Privacy />} />
           
           {/* Internal Console Routes */}
           <Route path="/internal-console" element={<Overview />} />

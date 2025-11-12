@@ -10,8 +10,9 @@ import { InternalLayout } from "@/components/InternalLayout";
 
 interface UserData {
   id: string;
-  email: string;
-  full_name: string | null;
+  pseudonymous_id: string;
+  consent_given: boolean;
+  consent_date: string | null;
   created_at: string;
   updated_at: string;
   trades_count: number;
@@ -68,11 +69,10 @@ export default function Users() {
     fetchUsers();
   }, [roleLoading]);
 
-  const filteredUsers = users.filter(
-    (user) =>
-      user.email?.toLowerCase().includes(search.toLowerCase()) ||
-      user.full_name?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredUsers = users.filter((user) => {
+    const searchLower = search.toLowerCase();
+    return user.pseudonymous_id?.toLowerCase().includes(searchLower);
+  });
 
   if (roleLoading || loading) {
     return (
@@ -98,7 +98,7 @@ export default function Users() {
           <CardHeader>
             <CardTitle>User Directory</CardTitle>
             <CardDescription>
-              {users.length} total users • Search by name or email
+              {users.length} total users • Search by pseudonymous ID
             </CardDescription>
             <div className="relative mt-4">
               <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -115,8 +115,8 @@ export default function Users() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>User</TableHead>
-                    <TableHead>Email</TableHead>
+                    <TableHead>Pseudonymous ID</TableHead>
+                    <TableHead>Consent</TableHead>
                     <TableHead className="text-center">Trades</TableHead>
                     <TableHead className="text-center">Sessions</TableHead>
                     <TableHead>Joined</TableHead>
@@ -125,41 +125,47 @@ export default function Users() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredUsers.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell className="font-medium">
-                        {user.full_name || "Anonymous User"}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">{user.email}</TableCell>
-                      <TableCell className="text-center font-semibold">
-                        {user.trades_count}
-                      </TableCell>
-                      <TableCell className="text-center font-semibold">
-                        {user.chats_count}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {new Date(user.created_at).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {new Date(user.updated_at).toLocaleDateString()}
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          variant={
-                            new Date(user.updated_at) >
-                            new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-                              ? "default"
-                              : "secondary"
-                          }
-                        >
-                          {new Date(user.updated_at) >
-                          new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-                            ? "Active"
-                            : "Inactive"}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {filteredUsers.map((user) => {
+                    const isActive = new Date(user.updated_at).getTime() > Date.now() - 7 * 24 * 60 * 60 * 1000;
+                    const shortId = user.pseudonymous_id.slice(0, 8);
+                    
+                    return (
+                      <TableRow key={user.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                              <span className="text-sm font-medium text-primary">
+                                {shortId[0].toUpperCase()}
+                              </span>
+                            </div>
+                            <span className="font-mono text-sm">{shortId}...</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={user.consent_given ? "default" : "destructive"}>
+                            {user.consent_given ? "Granted" : "Pending"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-center font-semibold">
+                          {user.trades_count}
+                        </TableCell>
+                        <TableCell className="text-center font-semibold">
+                          {user.chats_count}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {new Date(user.created_at).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground">
+                          {new Date(user.updated_at).toLocaleDateString()}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={isActive ? "default" : "secondary"}>
+                            {isActive ? "Active" : "Inactive"}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
