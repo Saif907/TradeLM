@@ -3,13 +3,12 @@ import { useNavigate } from "react-router-dom";
 import { ChatMessage } from "@/components/ChatMessage";
 import { ChatInput } from "@/components/ChatInput";
 import { ChatWelcome } from "@/components/ChatWelcome";
-import { PrivacyConsentModal } from "@/components/PrivacyConsentModal";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Layout } from "@/components/Layout";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { chatAPI } from "@/lib/api";
 
 interface Message {
   id: string;
@@ -31,106 +30,31 @@ const Index = () => {
   const [chats, setChats] = useState<Chat[]>([]);
   const [activeChat, setActiveChat] = useState<string | null>(null);
   const [isTyping, setIsTyping] = useState(false);
-  const [consentGiven, setConsentGiven] = useState<boolean | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Check consent status
-  useEffect(() => {
-    const checkConsent = async () => {
-      if (!user) return;
-
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("consent_given")
-        .eq("id", user.id)
-        .single();
-
-      if (error) {
-        console.error("Error checking consent:", error);
-        return;
-      }
-
-      setConsentGiven(data?.consent_given || false);
-    };
-
-    checkConsent();
-  }, [user]);
-
-  // Load chats from database
+  // Load chats from backend
   useEffect(() => {
     if (!user) return;
 
     const loadChats = async () => {
-      const { data: chatsData, error } = await supabase
-        .from("chats")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false });
-
-      if (error) {
-        toast.error("Failed to load chats");
-        return;
-      }
-
-      if (chatsData) {
-        const chatsWithMessages = await Promise.all(
-          chatsData.map(async (chat) => {
-            const { data: messagesData } = await supabase
-              .from("messages")
-              .select("*")
-              .eq("chat_id", chat.id)
-              .order("created_at", { ascending: true });
-
-            return {
-              id: chat.id,
-              title: chat.title,
-              timestamp: new Date(chat.created_at),
-              messages: (messagesData || []).map((msg) => ({
-                id: msg.id,
-                role: msg.role as "user" | "assistant",
-                content: msg.content,
-              })),
-            };
-          })
-        );
-
+      try {
+        const backendChats = await chatAPI.getChats();
+        
+        const chatsWithMessages = backendChats.map((chat: any) => ({
+          id: chat.id,
+          title: chat.title,
+          timestamp: new Date(chat.created_at),
+          messages: [] // Messages loaded separately when chat selected
+        }));
+        
         setChats(chatsWithMessages);
+      } catch (error) {
+        console.error("Error loading chats:", error);
+        toast.error("Failed to load chats");
       }
     };
 
     loadChats();
-
-    // Set up real-time subscription
-    const channel = supabase
-      .channel("chats-changes")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "chats",
-          filter: `user_id=eq.${user.id}`,
-        },
-        () => {
-          loadChats();
-        }
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "messages",
-        },
-        () => {
-          loadChats();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }, [user]);
 
   // Auto-scroll to bottom
@@ -163,71 +87,65 @@ const Index = () => {
   const handleNewChat = async () => {
     if (!user) return;
 
-    const { data, error } = await supabase
-      .from("chats")
-      .insert({
-        title: "New chat",
-        user_id: user.id,
-      })
-      .select()
-      .single();
+    try {
+      const newChat = await chatAPI.createChat("New chat");
+      
+      const chatData: Chat = {
+        id: newChat.id,
+        title: newChat.title,
+        timestamp: new Date(newChat.created_at),
+        messages: [],
+      };
 
-    if (error) {
+      setChats([chatData, ...chats]);
+      setActiveChat(newChat.id);
+    } catch (error) {
+      console.error("Error creating chat:", error);
       toast.error("Failed to create chat");
-      return;
     }
+  };
 
-    const newChat: Chat = {
-      id: data.id,
-      title: data.title,
-      timestamp: new Date(data.created_at),
-      messages: [],
-    };
-
-    setChats([newChat, ...chats]);
-    setActiveChat(newChat.id);
+  const handleChatSelect = async (chatId: string) => {
+    try {
+      const chatData = await chatAPI.getChat(chatId);
+      
+      // Update chat with messages
+      setChats(prev => prev.map(c => 
+        c.id === chatId 
+          ? {
+              ...c,
+              messages: chatData.messages.map((m: any) => ({
+                id: m.id,
+                role: m.role,
+                content: m.content
+              }))
+            }
+          : c
+      ));
+      
+      setActiveChat(chatId);
+    } catch (error) {
+      console.error("Error loading chat:", error);
+      toast.error("Failed to load chat");
+    }
   };
 
   const handleSendMessage = async (content: string) => {
     if (!user) return;
 
+    // Create new chat if none active
     if (!activeChat) {
       await handleNewChat();
       setTimeout(() => handleSendMessage(content), 100);
       return;
     }
 
-    // Save user message to database
-    const { data: userMessageData, error: userError } = await supabase
-      .from("messages")
-      .insert({
-        chat_id: activeChat,
-        user_id: user.id,
-        role: "user",
-        content,
-      })
-      .select()
-      .single();
-
-    if (userError) {
-      toast.error("Failed to send message");
-      return;
-    }
-
+    // Add user message optimistically
     const userMessage: Message = {
-      id: userMessageData.id,
+      id: `temp-${Date.now()}`,
       role: "user",
       content,
     };
-
-    // Update chat title if first message
-    const currentChat = chats.find((c) => c.id === activeChat);
-    if (currentChat && currentChat.messages.length === 0) {
-      await supabase
-        .from("chats")
-        .update({ title: content.slice(0, 50) })
-        .eq("id", activeChat);
-    }
 
     setChats((prev) =>
       prev.map((chat) =>
@@ -243,31 +161,15 @@ const Index = () => {
 
     setIsTyping(true);
 
-    // Simulate AI response and save to database
-    setTimeout(async () => {
-      const aiContent = `I've recorded your trade. Here's what I understood:\n\n"${content}"\n\nIn a real implementation, I would parse this information, extract the ticker symbol, entry/exit prices, dates, and calculate your profit/loss. I would also provide insights on your trading patterns and suggest improvements to your strategy.\n\nConnect to Lovable AI to enable full trading journal features including automatic trade parsing, P&L calculations, and personalized trading insights.`;
+    try {
+      // Send message to backend AI
+      const response = await chatAPI.sendMessage(activeChat, content);
 
-      const { data: aiMessageData, error: aiError } = await supabase
-        .from("messages")
-        .insert({
-          chat_id: activeChat,
-          user_id: user.id,
-          role: "assistant",
-          content: aiContent,
-        })
-        .select()
-        .single();
-
-      if (aiError) {
-        toast.error("Failed to save AI response");
-        setIsTyping(false);
-        return;
-      }
-
+      // Add AI response
       const aiMessage: Message = {
-        id: aiMessageData.id,
+        id: `ai-${Date.now()}`,
         role: "assistant",
-        content: aiContent,
+        content: response.message,
       };
 
       setChats((prev) =>
@@ -277,8 +179,26 @@ const Index = () => {
             : chat
         )
       );
+
+      // Show success if trade extracted
+      if (response.trade_extracted) {
+        toast.success("Trade logged successfully!");
+      }
+    } catch (error) {
+      console.error("Error sending message:", error);
+      toast.error("Failed to send message. Please try again.");
+      
+      // Remove optimistic user message on error
+      setChats((prev) =>
+        prev.map((chat) =>
+          chat.id === activeChat
+            ? { ...chat, messages: chat.messages.filter(m => m.id !== userMessage.id) }
+            : chat
+        )
+      );
+    } finally {
       setIsTyping(false);
-    }, 1000);
+    }
   };
 
   const handleSuggestionClick = (text: string) => {
@@ -286,46 +206,40 @@ const Index = () => {
   };
 
   return (
-    <>
-      <PrivacyConsentModal
-        open={consentGiven === false}
-        onConsentGiven={() => setConsentGiven(true)}
-      />
-      <Layout
-        sidebarOpen={sidebarOpen}
-        onSidebarToggle={() => setSidebarOpen(!sidebarOpen)}
-        chats={chats}
-        activeChat={activeChat}
-        onChatSelect={setActiveChat}
-        onNewChat={handleNewChat}
-      >
-        <div className="flex-1 flex flex-col h-screen">
-          {!currentChat || currentChat.messages.length === 0 ? (
-            <ChatWelcome onSuggestionClick={handleSuggestionClick} />
-          ) : (
-            <ScrollArea className="flex-1" ref={scrollRef}>
-              <div className="space-y-0">
-                {currentChat.messages.map((message) => (
-                  <ChatMessage
-                    key={message.id}
-                    role={message.role}
-                    content={message.content}
-                  />
-                ))}
-                {isTyping && (
-                  <ChatMessage
-                    role="assistant"
-                    content="Processing your trade..."
-                  />
-                )}
-              </div>
-            </ScrollArea>
-          )}
+    <Layout
+      sidebarOpen={sidebarOpen}
+      onSidebarToggle={() => setSidebarOpen(!sidebarOpen)}
+      chats={chats}
+      activeChat={activeChat}
+      onChatSelect={handleChatSelect}
+      onNewChat={handleNewChat}
+    >
+      <div className="flex-1 flex flex-col h-screen">
+        {!currentChat || currentChat.messages.length === 0 ? (
+          <ChatWelcome onSuggestionClick={handleSuggestionClick} />
+        ) : (
+          <ScrollArea className="flex-1" ref={scrollRef}>
+            <div className="space-y-0">
+              {currentChat.messages.map((message) => (
+                <ChatMessage
+                  key={message.id}
+                  role={message.role}
+                  content={message.content}
+                />
+              ))}
+              {isTyping && (
+                <ChatMessage
+                  role="assistant"
+                  content="Processing your message..."
+                />
+              )}
+            </div>
+          </ScrollArea>
+        )}
 
-          <ChatInput onSend={handleSendMessage} disabled={isTyping} />
-        </div>
-      </Layout>
-    </>
+        <ChatInput onSend={handleSendMessage} disabled={isTyping} />
+      </div>
+    </Layout>
   );
 };
 
