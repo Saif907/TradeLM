@@ -1,3 +1,4 @@
+// src/lib/api.ts
 import { supabase } from "@/integrations/supabase/client";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
@@ -32,7 +33,7 @@ async function apiClient(endpoint: string, options: RequestInit = {}) {
     ...options,
     headers,
     mode: 'cors',
-    credentials: 'include',
+    // credentials: 'include', // <-- REMOVED: This is not needed for Bearer token auth and causes the CORS conflict.
   });
   
   if (!response.ok) {
@@ -43,7 +44,6 @@ async function apiClient(endpoint: string, options: RequestInit = {}) {
   
   return response.json();
 }
-
 // Chat API
 export const chatAPI = {
   // Create new chat
@@ -87,11 +87,26 @@ export const tradeAPI = {
     return apiClient("/trades");
   },
   
-  // Create trade
+  // Create trade (POST /api/trades)
   createTrade: async (trade: any) => {
     return apiClient("/trades", {
       method: "POST",
       body: JSON.stringify(trade),
+    });
+  },
+  
+  // Update trade (PATCH /api/trades/{tradeId})
+  updateTrade: async (tradeId: string, trade: any) => {
+    return apiClient(`/trades/${tradeId}`, {
+      method: "PATCH", // Use PATCH for partial updates
+      body: JSON.stringify(trade),
+    });
+  },
+
+  // Delete trade (DELETE /api/trades/{tradeId})
+  deleteTrade: async (tradeId: string) => {
+    return apiClient(`/trades/${tradeId}`, {
+      method: "DELETE",
     });
   },
   

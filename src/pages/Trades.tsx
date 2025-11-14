@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+// REMOVED: import { supabase } from "@/integrations/supabase/client";
 import { Layout } from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Plus, TrendingUp, TrendingDown, DollarSign, Activity, Search, Edit, Trash2, ArrowUpDown, Download } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
+import { tradeAPI } from "@/lib/api"; // ADDED
 
 interface Trade {
   id: string;
@@ -25,8 +26,8 @@ interface Trade {
   entry_date: string;
   exit_date: string | null;
   profit_loss: number | null;
-  notes: string | null;
   created_at: string;
+  notes: string | null;
 }
 
 export default function Trades() {
@@ -83,13 +84,9 @@ export default function Trades() {
   const loadTrades = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from("trades")
-        .select("*")
-        .eq("user_id", user?.id)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
+      // REPLACED: Supabase direct call with API call
+      const data = await tradeAPI.getTrades();
+      
       setTrades(data || []);
     } catch (error) {
       console.error("Error loading trades:", error);
@@ -142,12 +139,9 @@ export default function Trades() {
       const entryPrice = parseFloat(formData.entry_price);
       const exitPrice = formData.exit_price ? parseFloat(formData.exit_price) : null;
       const quantity = parseInt(formData.quantity);
-
-      let profitLoss = null;
-      if (exitPrice !== null) {
-        profitLoss = (exitPrice - entryPrice) * quantity;
-      }
-
+      
+      // Removed local profitLoss calculation, backend handles it
+      
       const tradeData = {
         ticker: formData.ticker.toUpperCase(),
         entry_price: entryPrice,
@@ -155,25 +149,19 @@ export default function Trades() {
         quantity,
         entry_date: formData.entry_date,
         exit_date: formData.exit_date || null,
-        profit_loss: profitLoss,
         notes: formData.notes || null,
-        user_id: user?.id,
+        // Removed: profit_loss & user_id fields, handled by backend
       };
 
       if (editingTrade) {
-        const { error } = await supabase
-          .from("trades")
-          .update(tradeData)
-          .eq("id", editingTrade.id);
+        // REPLACED: Supabase direct update with API call
+        await tradeAPI.updateTrade(editingTrade.id, tradeData);
 
-        if (error) throw error;
         toast.success("Trade updated successfully");
       } else {
-        const { error } = await supabase
-          .from("trades")
-          .insert(tradeData);
+        // REPLACED: Supabase direct insert with API call
+        await tradeAPI.createTrade(tradeData);
 
-        if (error) throw error;
         toast.success("Trade added successfully");
       }
 
@@ -204,12 +192,8 @@ export default function Trades() {
     if (!tradeToDelete) return;
 
     try {
-      const { error } = await supabase
-        .from("trades")
-        .delete()
-        .eq("id", tradeToDelete);
-
-      if (error) throw error;
+      // REPLACED: Supabase direct delete with API call
+      await tradeAPI.deleteTrade(tradeToDelete);
 
       toast.success("Trade deleted successfully");
       loadTrades();
