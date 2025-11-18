@@ -1,12 +1,14 @@
-import { Bot, User } from "lucide-react";
+import { Bot, User, Globe } from "lucide-react"; // Import Globe for grounding indicator
 import { cn } from "@/lib/utils";
+import { Badge } from "@/components/ui/badge"; // Ensure Badge is imported
 
 interface ChatMessageProps {
   role: "user" | "assistant";
   content: string;
+  is_grounded?: boolean; // NEW PROP
 }
 
-export function ChatMessage({ role, content }: ChatMessageProps) {
+export function ChatMessage({ role, content, is_grounded = false }: ChatMessageProps) {
   const isUser = role === "user";
 
   return (
@@ -25,9 +27,18 @@ export function ChatMessage({ role, content }: ChatMessageProps) {
               : "bg-secondary text-secondary-foreground"
           )}
         >
-          {isUser ? <User className="h-4 w-4 sm:h-5 sm:w-5" /> : <Bot className="h-4 w-4 sm:h-5 sm:w-5" />}
+          {isUser ? <User className="h-4 w-4 sm:h-5 sm:w-5" /> : <Bot className="h-4 w-4 sm:h-5 w-5" />}
         </div>
         <div className="flex-1 prose prose-invert max-w-none">
+          {/* AI Message Header/Grounding Indicator */}
+          {!isUser && is_grounded && (
+            <div className="mb-2">
+                <Badge variant="secondary" className="text-xs font-normal bg-secondary/70">
+                    <Globe className="h-3 w-3 mr-1" />
+                    Searched the Web for live data
+                </Badge>
+            </div>
+          )}
           <p className="text-sm sm:text-base text-foreground leading-relaxed whitespace-pre-wrap break-words">
             {content}
           </p>

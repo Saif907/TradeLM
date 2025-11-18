@@ -53,7 +53,9 @@ const Index = () => {
       messages: data.messages.map((m: any) => ({
         id: m.id,
         role: m.role,
-        content: m.content
+        content: m.content,
+        // Ensure is_grounded is carried over from the API if present in stored messages
+        is_grounded: m.is_grounded || false 
       })) as Message[],
     } as Chat),
   });
@@ -87,7 +89,14 @@ const Index = () => {
         
         const filteredMessages = oldData.messages.filter(m => !m.id.startsWith('temp-'));
         const userMessage = { id: `user-${Date.now()}`, role: "user", content: variables.message } as Message;
-        const finalAiMessage = { id: `ai-${Date.now()}-final`, role: "assistant", content: response.message } as Message;
+        
+        // MODIFIED: Attach the new is_grounded flag to the final AI message
+        const finalAiMessage = { 
+          id: `ai-${Date.now()}-final`, 
+          role: "assistant", 
+          content: response.message,
+          is_grounded: response.is_grounded || false // CAPTURE THE NEW FLAG
+        } as Message & { is_grounded?: boolean }; 
 
         return {
           ...oldData,
@@ -141,9 +150,11 @@ const Index = () => {
 
   // --- 3. Unified Handlers (Connecting UI to Mutations/Queries) ---
 
-  const handleNewChat = (initialTitle = "New chat") => {
+  // MODIFIED: Adjust definition to safely ignore event argument (fixes circular JSON error source)
+  const handleNewChat = (title?: string) => {
     if (!user) return;
-    createChatMutation.mutate(initialTitle);
+    // Safely use title if it's a string, otherwise use default
+    createChatMutation.mutate(typeof title === 'string' ? title : "New chat");
   };
 
   const handleChatSelect = (chatId: string) => {
@@ -157,6 +168,7 @@ const Index = () => {
     
     if (!targetChatId) {
       const tempChatTitle = content.slice(0, 50);
+      // NOTE: We rely on the modified handleNewChat/createChatMutation to safely handle the title string
       const newChatResponse = await createChatMutation.mutateAsync(tempChatTitle);
       targetChatId = newChatResponse.id;
       setActiveChat(newChatResponse.id);
@@ -182,7 +194,7 @@ const Index = () => {
   }, [activeChatData]); 
 
 
-  // --- 4. Render Logic with Loading/Error States (FIX APPLIED) ---
+  // --- 4. Render Logic with Loading/Error States ---
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -223,6 +235,8 @@ const Index = () => {
             key={message.id}
             role={message.role as "user" | "assistant"}
             content={message.content}
+            // Pass the new flag to ChatMessage component
+            is_grounded={(message as Message & { is_grounded?: boolean }).is_grounded} 
           />
         ))}
       </div>

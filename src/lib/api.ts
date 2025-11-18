@@ -3,6 +3,26 @@ import { supabase } from "@/integrations/supabase/client";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000/api";
 
+// --- NEW/UPDATED TYPE DEFINITIONS FOR CHAT API ---
+
+interface ExtractedTrade {
+  ticker: string;
+  entry_date: string; // ISO date string
+  entry_price: number;
+  quantity: number;
+  exit_date: string | null;
+  exit_price: number | null;
+  notes: string | null;
+}
+
+interface AIMessageResponse {
+  message: string;
+  trade_extracted: ExtractedTrade | null;
+  is_grounded: boolean; // The new flag from the microservice
+}
+
+// --- API Client Helpers ---
+
 // Get auth token from Supabase session
 async function getAuthToken(): Promise<string | null> {
   const { data: { session } } = await supabase.auth.getSession();
@@ -49,6 +69,7 @@ async function apiClient(endpoint: string, options: RequestInit = {}) {
   
   return response.json();
 }
+
 // Chat API
 export const chatAPI = {
   // Create new chat
@@ -76,12 +97,12 @@ export const chatAPI = {
     });
   },
   
-  // Send message to AI
-  sendMessage: async (chatId: string, message: string) => {
+  // Send message to AI (UPDATED RETURN TYPE)
+  sendMessage: async (chatId: string, message: string): Promise<AIMessageResponse> => {
     return apiClient("/ai/chat", {
       method: "POST",
       body: JSON.stringify({ chat_id: chatId, message }),
-    });
+    }) as Promise<AIMessageResponse>; // Cast to new interface
   },
 };
 
